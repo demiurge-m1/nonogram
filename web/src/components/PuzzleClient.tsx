@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import type { PuzzlePayload } from '@/types/puzzle';
+import { ensureGuestToken } from '@/lib/auth';
+import { getProgress, saveProgress } from '@/lib/api';
 import { solveWithWasm } from '@/lib/wasmSolver';
 
 type CellState = 0 | 1 | -1; // пусто, заполнено, крестик
@@ -31,6 +33,7 @@ export function PuzzleClient({ puzzle }: Props) {
   const [mode, setMode] = useState<'fill' | 'cross'>('fill');
   const [autoMode, setAutoMode] = useState<'off' | 'fill' | 'cross'>('off');
   const [grid, setGrid] = useState<CellState[]>(createEmptyGrid);
+  const [guestToken, setGuestToken] = useState<string | null>(null);
   const [errorCount, setErrorCount] = useState(0);
   const [solverGrid, setSolverGrid] = useState<number[][] | null>(null);
   const [solverError, setSolverError] = useState<string | null>(null);
@@ -141,6 +144,45 @@ export function PuzzleClient({ puzzle }: Props) {
   }, [createEmptyGrid, storageKey, totalCells]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    ensureGuestToken()
+      .then((token) => {
+        if (!cancelled && token) {
+          setGuestToken(token);
+        }
+      })
+      .catch((error) => console.warn('Failed to ensure guest token', error));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!guestToken) return;
+    let cancelled = false;
+    getProgress(puzzle.id, guestToken)
+      .then((progress) => {
+        if (!progress || cancelled) return;
+        const snapshot = progress.grid
+          .slice(0, totalCells)
+          .map((value) => (value === 1 ? 1 : value === -1 ? -1 : 0)) as CellState[];
+        historyRef.current = [snapshot];
+        historyIndexRef.current = 0;
+        gridRef.current = snapshot;
+        startTransition(() => {
+          setGrid(snapshot);
+          setErrorCount(progress.mistakes ?? 0);
+          syncHistoryFlags();
+        });
+      })
+      .catch((error) => console.warn('Failed to load server progress', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [guestToken, puzzle.id, totalCells]);
+
+  useEffect(() => {
     if (!hasHydrated || typeof window === 'undefined') return;
     const payload = JSON.stringify({ grid, errors: errorCount });
     window.localStorage.setItem(storageKey, payload);
@@ -176,6 +218,18 @@ export function PuzzleClient({ puzzle }: Props) {
       return value !== 1;
     });
   }, [grid, solvedFlat]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !guestToken || !hasHydrated) return;
+    const handle = window.setTimeout(() => {
+      saveProgress(puzzle.id, guestToken, {
+        grid: grid.map((cell) => (cell === 1 ? 1 : cell === -1 ? -1 : 0)),
+        mistakes: errorCount,
+        completed: isSolved,
+      }).catch((error) => console.warn('Failed to save progress', error));
+    }, 1000);
+    return () => window.clearTimeout(handle);
+  }, [grid, errorCount, isSolved, guestToken, hasHydrated, puzzle.id]);
 
   const updateErrorTracking = (index: number, nextValue: CellState) => {
     if (!solvedFlat) return;
