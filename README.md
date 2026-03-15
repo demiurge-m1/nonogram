@@ -26,10 +26,10 @@
 - Signed puzzle packages delivered from backend; client caches for offline play.
 
 ### Backend & Data
-- **API**: NestJS (Node/TypeScript) or Go microservices; mix REST/GraphQL; WebSockets for tournaments.
-- **Database**: PostgreSQL (users, purchases, packs, events, leaderboards); Redis for caching sessions/leaderboards; ClickHouse/BigQuery for analytics.
+- **API**: NestJS (Node/TypeScript) or Go microservices; mix REST/GraphQL; WebSockets для турниров. Gateway skeleton уже лежит в `backend/` (NestJS + packs/puzzles/health).
+- **Database**: PostgreSQL (users, purchases, packs, events, leaderboards); Redis для кэшей; ClickHouse/BigQuery для аналитики.
 - **LiveOps services**: feature flags (LaunchDarkly/Unleash), Remote Config.
-- **Storage**: S3/GCS for puzzle assets; CDN (CloudFront/Fastly) for delivery.
+- **Storage**: S3/GCS для payload’ов; CDN (CloudFront/Fastly) для выдачи.
 
 ### Infrastructure
 - Cloud: AWS or GCP (prefer AWS for broader services). Kubernetes (EKS/GKE) + Terraform IaC.
