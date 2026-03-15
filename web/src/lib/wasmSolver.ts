@@ -12,8 +12,9 @@ async function ensureWasm() {
     wasmModulePromise = import('../wasm/pkg');
   }
   const wasmModule = await wasmModulePromise;
-  if (typeof wasmModule.default === 'function') {
-    await wasmModule.default();
+  const maybeInit = (wasmModule as { default?: (input?: unknown) => Promise<unknown> }).default;
+  if (typeof maybeInit === 'function') {
+    await maybeInit();
   }
   return wasmModule;
 }

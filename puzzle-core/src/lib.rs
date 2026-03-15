@@ -116,8 +116,8 @@ fn generate_row_patterns(clues: &[u8], size: usize) -> Vec<Vec<u8>> {
     ) {
         if idx == clues.len() {
             let mut final_row = current;
-            for i in pos..size {
-                final_row[i] = 0;
+            for cell in final_row.iter_mut().skip(pos) {
+                *cell = 0;
             }
             results.push(final_row);
             return;
@@ -134,11 +134,11 @@ fn generate_row_patterns(clues: &[u8], size: usize) -> Vec<Vec<u8>> {
 
         for start in pos..=max_start {
             let mut next_row = current.clone();
-            for i in pos..start {
-                next_row[i] = 0;
+            for cell in next_row.iter_mut().take(start).skip(pos) {
+                *cell = 0;
             }
-            for i in start..start + block_len {
-                next_row[i] = 1;
+            for cell in next_row.iter_mut().skip(start).take(block_len) {
+                *cell = 1;
             }
             let next_pos = if idx + 1 == clues.len() {
                 start + block_len
@@ -187,14 +187,14 @@ pub fn solve(puzzle: &Puzzle) -> Option<Grid> {
     let grid = solve_rows(puzzle, 0, &mut workspace)?;
 
     let mut solved = Grid::new(puzzle.size);
-    for row in 0..puzzle.size {
-        for col in 0..puzzle.size {
-            let state = if grid[row][col] == 1 {
+    for (row_idx, row_values) in grid.iter().enumerate() {
+        for (col_idx, value) in row_values.iter().enumerate() {
+            let state = if *value == 1 {
                 CellState::Filled
             } else {
                 CellState::Empty
             };
-            solved.set(row, col, state);
+            solved.set(row_idx, col_idx, state);
         }
     }
     Some(solved)

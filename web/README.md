@@ -26,10 +26,11 @@ The dev server runs on http://localhost:3000 (Turbopack). Network URL also print
 
 `src/lib/wasmSolver.ts` lazily imports the compiled package from `../puzzle-core/pkg` and exposes a typed `solveWithWasm(puzzle)` helper. `PuzzleClient` now relies on it for win detection instead of сравнения с моками.
 
-## Linting
+## Linting & Types
 
 ```bash
 npm run lint
+npm run typecheck
 ```
 
-(Checks ESLint + TypeScript.)
+`lint` = ESLint, `typecheck` = `tsc --noEmit` (используется и в CI).

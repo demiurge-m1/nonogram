@@ -98,3 +98,8 @@
    - На базе React Native/Flutter подключить существующий core/API.  
    - Интегрировать нативные SDK (push, IAP, ads), повторить UX под тач-жесты.  
    - Тестирование, публикация в App Store/Google Play.
+
+## 10. CI & Verify
+- Локально гоняем `scripts/verify.sh` (cargo fmt/clippy/test + web lint/typecheck) перед коммитами.
+- GitHub Actions (`.github/workflows/ci.yml`) повторяет тот же пайплайн: отдельный job для `puzzle-core` (Rust fmt/clippy/test) и отдельный для `web` (Node 20, npm ci, lint, typecheck).
+- Merge в `main` возможен только при зелёном CI, поэтому держим зависимости/wasm-пакеты в актуальном состоянии.
