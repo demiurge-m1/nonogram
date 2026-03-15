@@ -1,19 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import type { SaveProgressDto } from './dto/save-progress.dto';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { ProgressResponseDto } from './dto/progress-response.dto';
-
-export type ProgressEntry = ProgressResponseDto & { userId: string };
+import type { SaveProgressDto } from './dto/save-progress.dto';
+import {
+  PROGRESS_REPOSITORY,
+  type ProgressRecord,
+  type ProgressRepository,
+} from './progress.repository';
 
 @Injectable()
 export class ProgressService {
-  private readonly storage = new Map<string, ProgressEntry>();
+  constructor(
+    @Inject(PROGRESS_REPOSITORY)
+    private readonly repository: ProgressRepository,
+  ) {}
 
-  saveProgress(
+  async saveProgress(
     userId: string,
     puzzleId: string,
     payload: SaveProgressDto,
-  ): ProgressResponseDto {
-    const entry: ProgressEntry = {
+  ): Promise<ProgressResponseDto> {
+    const entry: ProgressRecord = {
       userId,
       puzzleId,
       grid: payload.grid,
@@ -21,19 +27,24 @@ export class ProgressService {
       completed: payload.completed,
       updatedAt: new Date().toISOString(),
     };
-    this.storage.set(this.composeKey(userId, puzzleId), entry);
-    return entry;
+    await this.repository.save(entry);
+    return this.stripUser(entry);
   }
 
-  getProgress(userId: string, puzzleId: string): ProgressResponseDto {
-    const entry = this.storage.get(this.composeKey(userId, puzzleId));
+  async getProgress(
+    userId: string,
+    puzzleId: string,
+  ): Promise<ProgressResponseDto> {
+    const entry = await this.repository.findOne(userId, puzzleId);
     if (!entry) {
       throw new NotFoundException('Progress not found');
     }
-    return entry;
+    return this.stripUser(entry);
   }
 
-  private composeKey(userId: string, puzzleId: string) {
-    return `${userId}:${puzzleId}`;
+  private stripUser(record: ProgressRecord): ProgressResponseDto {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { userId, ...rest } = record;
+    return rest;
   }
 }

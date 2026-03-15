@@ -80,3 +80,14 @@ src/
 - Observability (Prometheus, OpenTelemetry), Swagger/OpenAPI.
 
 Вопросы/идеи — кидай в основной README или в чат, будем расширять дальше.
+
+### Progress storage
+
+| Env | Default | Назначение |
+| --- | --- | --- |
+| `PROGRESS_STORE` | `file` | `file` или `memory` |
+| `PROGRESS_STORE_PATH` | `var/progress.json` | путь к JSON-файлу |
+| `PROGRESS_FLUSH_MS` | `1000` | дебаунс записи (мс) |
+| `PROGRESS_TTL_DAYS` | `30` | сколько дней держим записи |
+
+По умолчанию backend пишет в `backend/var/progress.json` и переживает рестарты. Для тестов можно установить `PROGRESS_STORE=memory`.
