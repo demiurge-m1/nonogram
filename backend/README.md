@@ -48,6 +48,8 @@ docker run -p 3333:3333 nonogram-gateway
 | POST   | `/auth/guest`   | Создать гостевой токен |
 | GET    | `/auth/profile` | Профиль текущей сессии |
 | GET    | `/healthz`      | Health + commit hash   |
+| GET    | `/progress/:puzzleId` | Получить сохранённый пазл |
+| POST   | `/progress/:puzzleId` | Сохранить прогресс пазла |
 | GET    | `/packs`        | Список паков (+counts) |
 | GET    | `/packs/:id`    | Полное описание пака   |
 | GET    | `/puzzles/:id`  | Полные данные пазла    |

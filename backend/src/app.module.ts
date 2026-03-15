@@ -5,6 +5,7 @@ import { configValidationSchema } from './config/validation';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { PacksModule } from './packs/packs.module';
+import { ProgressModule } from './progress/progress.module';
 import { PuzzlesModule } from './puzzles/puzzles.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { PuzzlesModule } from './puzzles/puzzles.module';
     AuthModule,
     HealthModule,
     PacksModule,
+    ProgressModule,
     PuzzlesModule,
   ],
 })

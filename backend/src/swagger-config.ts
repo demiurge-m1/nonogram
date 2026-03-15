@@ -11,5 +11,6 @@ export const buildSwaggerConfig = () =>
     .addTag('Auth')
     .addTag('Health')
     .addTag('Packs')
+    .addTag('Progress')
     .addTag('Puzzles')
     .build();
