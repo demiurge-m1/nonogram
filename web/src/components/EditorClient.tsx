@@ -105,26 +105,26 @@ export function EditorClient() {
       solution,
     };
 
+    const basePayload = {
+      id: `ugc-${Date.now()}`,
+      slug: slugify(meta.name),
+      size: SIZE,
+      rows: rowHints,
+      cols: colHints,
+      cells: solution,
+      author: meta.author || 'anonymous',
+      createdAt: new Date().toISOString(),
+    };
+
     try {
       const solved = await solveWithWasm(puzzle);
       const matches = JSON.stringify(solved.grid) === JSON.stringify(solution);
       setStatus({ state: matches ? 'ok' : 'error', message: matches ? 'Solver подтвердил пазл' : 'Solver нашёл другое решение' });
-
-      const payload = {
-        id: `ugc-${Date.now()}`,
-        slug: slugify(meta.name),
-        size: SIZE,
-        rows: rowHints,
-        cols: colHints,
-        cells: solution,
-        solvable: matches,
-        author: meta.author || 'anonymous',
-        createdAt: new Date().toISOString(),
-      };
-      setJsonPreview(JSON.stringify(payload, null, 2));
+      setJsonPreview(JSON.stringify({ ...basePayload, solvable: matches }, null, 2));
     } catch (error) {
       console.error(error);
-      setStatus({ state: 'error', message: 'Solver не смог проверить сетку' });
+      setStatus({ state: 'error', message: 'Solver не смог подтвердить пазл (скорее всего несколько решений)' });
+      setJsonPreview(JSON.stringify({ ...basePayload, solvable: false }, null, 2));
     }
   };
 
