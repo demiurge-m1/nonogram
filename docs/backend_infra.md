@@ -63,7 +63,84 @@
 7. Админ-панель (управление паков, событиями, UGC).  
 8. Подготовить масштабирование (autoscaling, multi-AZ, бэкапы).
 
-## 8. Открытые вопросы
+## 8. JSON payloads
+
+### Pack & Puzzle summary
+```ts
+type PuzzleSummary = {
+  id: string;
+  name: string;
+  size: string; // e.g. "5×5"
+  difficulty: "Easy" | "Normal" | "Hard" | "Expert";
+  status: "locked" | "available" | "completed";
+};
+
+type Pack = {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: "Easy" | "Normal" | "Hard";
+  badge: string;
+  puzzles: PuzzleSummary[];
+};
+```
+Example:
+```json
+{
+  "id": "starter",
+  "title": "Starter Pack",
+  "description": "5×5 и 10×10 пазлы для быстрого старта.",
+  "difficulty": "Easy",
+  "badge": "🌱",
+  "puzzles": [
+    { "id": "s-1", "name": "Smiley", "size": "5×5", "difficulty": "Easy", "status": "completed" }
+  ]
+}
+```
+
+### Puzzle payload
+```ts
+type Puzzle = {
+  id: string;
+  name: string;
+  size: number;
+  rows: number[][];
+  cols: number[][];
+  solution: number[][]; // битовая матрица 0/1
+  solvable: boolean; // серверная проверка
+  reward?: { xp: number; tokens?: number };
+};
+```
+
+### UserProgress
+```ts
+type UserProgress = {
+  userId: string;
+  puzzleId: string;
+  packId?: string;
+  gridState: string; // base64 bitmask или run-length
+  mistakes: number;
+  completed: boolean;
+  updatedAt: string;
+};
+```
+
+### UGC puzzle
+```ts
+type UGC = {
+  id: string;
+  slug: string;
+  size: number;
+  rows: number[][];
+  cols: number[][];
+  solvable: boolean;
+  author: { id: string; nickname: string };
+  votes: { up: number; down: number };
+  createdAt: string;
+};
+```
+
+## 9. Открытые вопросы
 - Точные объёмы нагрузки для планирования кластеров (EKS, ClickHouse).  
 - Требования по срокам disaster recovery / RTO-RPO.  
 - Детали админ-панели (кто и какие операции должен иметь).  
