@@ -1,0 +1,17 @@
+{
+  "name": "puzzle_core",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "puzzle_core_bg.wasm",
+    "puzzle_core.js",
+    "puzzle_core_bg.js",
+    "puzzle_core.d.ts"
+  ],
+  "main": "puzzle_core.js",
+  "types": "puzzle_core.d.ts",
+  "sideEffects": [
+    "./puzzle_core.js",
+    "./snippets/*"
+  ]
+}
