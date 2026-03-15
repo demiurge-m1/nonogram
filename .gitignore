@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+web/.next/
+web/node_modules/
+web/.turbo/
+puzzle-core/target/
+puzzle-core/pkg/
+target/
+dist/
