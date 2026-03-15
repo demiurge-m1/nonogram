@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import type { PuzzlePayload } from '@/types/puzzle';
+import type { SaveProgressPayload } from '@/types/progress';
 import { ensureGuestToken } from '@/lib/auth';
 import { getProgress, saveProgress } from '@/lib/api';
 import { solveWithWasm } from '@/lib/wasmSolver';
@@ -13,6 +14,7 @@ type Props = {
 };
 
 const HISTORY_LIMIT = 200;
+const AUTOSAVE_INTERVAL_MS = 1000;
 
 const cellClass = (state: CellState) => {
   if (state === 1) return 'bg-emerald-400 border-emerald-300 shadow-inner shadow-emerald-900/30';
@@ -29,6 +31,10 @@ export function PuzzleClient({ puzzle }: Props) {
   const historyIndexRef = useRef(0);
   const gridRef = useRef<CellState[]>(createEmptyGrid());
   const strokeBaseRef = useRef<CellState[] | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveRef = useRef<SaveProgressPayload | null>(null);
+  const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSentRef = useRef(0);
 
   const [mode, setMode] = useState<'fill' | 'cross'>('fill');
   const [autoMode, setAutoMode] = useState<'off' | 'fill' | 'cross'>('off');
@@ -219,17 +225,83 @@ export function PuzzleClient({ puzzle }: Props) {
     });
   }, [grid, solvedFlat]);
 
+  const dispatchSave = useCallback(
+    (payload: SaveProgressPayload) => {
+      if (!guestToken) return;
+      const run = async () => {
+        try {
+          await saveProgress(puzzle.id, guestToken, payload);
+        } catch (error) {
+          console.warn('Failed to save progress', error);
+        }
+      };
+      saveQueueRef.current = saveQueueRef.current.then(run, run);
+    },
+    [guestToken, puzzle.id],
+  );
+
+  const flushPendingSave = useCallback(() => {
+    if (!guestToken) return;
+    if (throttleTimerRef.current) {
+      clearTimeout(throttleTimerRef.current);
+      throttleTimerRef.current = null;
+    }
+    if (pendingSaveRef.current) {
+      const payload = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      lastSentRef.current = Date.now();
+      dispatchSave(payload);
+    }
+  }, [dispatchSave, guestToken]);
+
+  const scheduleServerSave = useCallback(
+    (payload: SaveProgressPayload) => {
+      if (!guestToken) return;
+      const now = Date.now();
+      const elapsed = now - lastSentRef.current;
+      if (elapsed >= AUTOSAVE_INTERVAL_MS && !pendingSaveRef.current && !throttleTimerRef.current) {
+        lastSentRef.current = now;
+        dispatchSave(payload);
+        return;
+      }
+      pendingSaveRef.current = payload;
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+      }
+      const delay = Math.max(AUTOSAVE_INTERVAL_MS - elapsed, 0);
+      throttleTimerRef.current = setTimeout(() => {
+        throttleTimerRef.current = null;
+        if (!pendingSaveRef.current) {
+          return;
+        }
+        lastSentRef.current = Date.now();
+        const snapshot = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        dispatchSave(snapshot);
+      }, delay);
+    },
+    [dispatchSave, guestToken],
+  );
+
   useEffect(() => {
-    if (typeof window === 'undefined' || !guestToken || !hasHydrated) return;
-    const handle = window.setTimeout(() => {
-      saveProgress(puzzle.id, guestToken, {
-        grid: grid.map((cell) => (cell === 1 ? 1 : cell === -1 ? -1 : 0)),
-        mistakes: errorCount,
-        completed: isSolved,
-      }).catch((error) => console.warn('Failed to save progress', error));
-    }, 1000);
-    return () => window.clearTimeout(handle);
-  }, [grid, errorCount, isSolved, guestToken, hasHydrated, puzzle.id]);
+    if (!guestToken || !hasHydrated) return;
+    const payload: SaveProgressPayload = {
+      grid: grid.map((cell) => (cell === 1 ? 1 : cell === -1 ? -1 : 0)),
+      mistakes: errorCount,
+      completed: isSolved,
+    };
+    scheduleServerSave(payload);
+  }, [grid, errorCount, isSolved, guestToken, hasHydrated, puzzle.id, scheduleServerSave]);
+
+  useEffect(() => {
+    return () => {
+      flushPendingSave();
+    };
+  }, [flushPendingSave]);
+
+  useEffect(() => {
+    lastSentRef.current = 0;
+  }, [guestToken, puzzle.id]);
 
   const updateErrorTracking = (index: number, nextValue: CellState) => {
     if (!solvedFlat) return;
