@@ -1,7 +1,9 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { buildSwaggerConfig } from './swagger-config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,6 +27,12 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+
+  const swaggerConfig = buildSwaggerConfig();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: 'Nonogram API Docs',
+  });
 
   await app.listen(port, host);
 }
