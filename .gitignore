@@ -7,3 +7,5 @@ puzzle-core/target/
 puzzle-core/pkg/
 target/
 dist/
+
+web/src/wasm/pkg/
