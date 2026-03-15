@@ -1,26 +1,9 @@
 import Link from 'next/link';
-import { getBaseUrl } from '@/lib/baseUrl';
-
-export type PackSummary = {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: string;
-  badge: string;
-  puzzleCount: number;
-};
-
-async function fetchPacks(): Promise<PackSummary[]> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/packs`, { cache: 'no-store' });
-  if (!res.ok) {
-    throw new Error('Failed to load packs');
-  }
-  return res.json();
-}
+import { getPacks } from '@/lib/api';
+import type { PackSummary } from '@/types/packs';
 
 export default async function Home() {
-  const packs = await fetchPacks();
+  const packs: PackSummary[] = await getPacks();
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">

@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
-import type { PuzzleGrid } from '@/data/mockBoards';
+import type { PuzzlePayload } from '@/types/puzzle';
 import { solveWithWasm } from '@/lib/wasmSolver';
 
 type CellState = 0 | 1 | -1; // пусто, заполнено, крестик
 
 type Props = {
-  puzzle: PuzzleGrid;
+  puzzle: PuzzlePayload;
 };
 
 const HISTORY_LIMIT = 200;

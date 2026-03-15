@@ -22,6 +22,12 @@ npm run dev
 
 The dev server runs on http://localhost:3000 (Turbopack). Network URL also printed in the console.
 
+## Backend API
+
+- API базовый URL задаётся через `NEXT_PUBLIC_API_BASE` (см. `.env.example`). По умолчанию `http://localhost:3333`.
+- Перед запуском фронта подними gateway (`cd ../backend && npm run start:dev`).
+- Для smoke-теста: `curl http://localhost:3333/healthz` и затем `npm run dev` в `web/`.
+
 ## Wasm helper
 
 `src/lib/wasmSolver.ts` lazily imports the compiled package from `../puzzle-core/pkg` and exposes a typed `solveWithWasm(puzzle)` helper. `PuzzleClient` now relies on it for win detection instead of сравнения с моками.

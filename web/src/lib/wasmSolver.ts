@@ -1,4 +1,4 @@
-import type { PuzzleGrid } from '@/data/mockBoards';
+import type { PuzzlePayload } from '@/types/puzzle';
 
 type SolveResponse = {
   size: number;
@@ -19,7 +19,7 @@ async function ensureWasm() {
   return wasmModule;
 }
 
-export async function solveWithWasm(puzzle: PuzzleGrid): Promise<SolveResponse> {
+export async function solveWithWasm(puzzle: PuzzlePayload): Promise<SolveResponse> {
   const wasmModule = await ensureWasm();
   const result = wasmModule.solve_json(puzzle as unknown as Record<string, unknown>);
   return result as SolveResponse;

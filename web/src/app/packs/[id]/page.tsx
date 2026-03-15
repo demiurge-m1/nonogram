@@ -1,27 +1,15 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import type { Pack } from '@/data/mockPacks';
-import { getBaseUrl } from '@/lib/baseUrl';
+import type { PackDetail } from '@/types/packs';
+import { getPack } from '@/lib/api';
 
 type Props = {
   params: Promise<{ id: string }>;
 };
 
-async function fetchPack(id: string): Promise<Pack | null> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/packs/${id}`, { cache: 'no-store' });
-  if (res.status === 404) {
-    return null;
-  }
-  if (!res.ok) {
-    throw new Error('Failed to load pack');
-  }
-  return res.json();
-}
-
 export default async function PackPage({ params }: Props) {
   const { id } = await params;
-  const pack = await fetchPack(id);
+  const pack: PackDetail | null = await getPack(id);
 
   if (!pack) {
     notFound();

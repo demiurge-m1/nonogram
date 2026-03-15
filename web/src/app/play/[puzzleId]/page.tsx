@@ -1,28 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import type { PuzzleGrid } from '@/data/mockBoards';
-import { getBaseUrl } from '@/lib/baseUrl';
+import type { PuzzlePayload } from '@/types/puzzle';
+import { getPuzzle } from '@/lib/api';
 import { PuzzleClient } from '@/components/PuzzleClient';
 
 type Props = {
   params: Promise<{ puzzleId: string }>;
 };
 
-async function fetchPuzzle(id: string): Promise<PuzzleGrid | null> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/puzzles/${id}`, { cache: 'no-store' });
-  if (res.status === 404) {
-    return null;
-  }
-  if (!res.ok) {
-    throw new Error('Failed to load puzzle');
-  }
-  return res.json();
-}
-
 export default async function PlayPage({ params }: Props) {
   const { puzzleId } = await params;
-  const puzzle = await fetchPuzzle(puzzleId);
+  const puzzle: PuzzlePayload | null = await getPuzzle(puzzleId);
 
   if (!puzzle) {
     notFound();

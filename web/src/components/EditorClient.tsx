@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, startTransition } from 'react';
 import { solveWithWasm } from '@/lib/wasmSolver';
-import type { PuzzleGrid } from '@/data/mockBoards';
+import type { PuzzlePayload } from '@/types/puzzle';
 
 const SIZE = 15;
 const STORAGE_KEY = 'nonogram-ugc-draft';
@@ -96,7 +96,7 @@ export function EditorClient() {
     }
     setStatus({ state: 'checking' });
     const solution = matrix;
-    const puzzle: PuzzleGrid = {
+    const puzzle: PuzzlePayload = {
       id: 'ugc-preview',
       name: meta.name || 'Untitled',
       size: SIZE,
