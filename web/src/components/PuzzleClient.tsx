@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, startTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import type { PuzzleGrid } from '@/data/mockBoards';
 import { solveWithWasm } from '@/lib/wasmSolver';
 
@@ -10,6 +10,8 @@ type Props = {
   puzzle: PuzzleGrid;
 };
 
+const HISTORY_LIMIT = 200;
+
 const cellClass = (state: CellState) => {
   if (state === 1) return 'bg-emerald-400 border-emerald-300 shadow-inner shadow-emerald-900/30';
   if (state === -1) return 'bg-slate-900 text-slate-500';
@@ -17,11 +19,51 @@ const cellClass = (state: CellState) => {
 };
 
 export function PuzzleClient({ puzzle }: Props) {
+  const totalCells = puzzle.size * puzzle.size;
+  const storageKey = `nonogram-progress-${puzzle.id}`;
+  const createEmptyGrid = useCallback(() => Array<CellState>(totalCells).fill(0) as CellState[], [totalCells]);
+
+  const historyRef = useRef<CellState[][]>([createEmptyGrid()]);
+  const historyIndexRef = useRef(0);
+  const gridRef = useRef<CellState[]>(createEmptyGrid());
+  const strokeBaseRef = useRef<CellState[] | null>(null);
+
   const [mode, setMode] = useState<'fill' | 'cross'>('fill');
-  const [grid, setGrid] = useState<CellState[]>(() => Array(puzzle.size * puzzle.size).fill(0));
+  const [autoMode, setAutoMode] = useState<'off' | 'fill' | 'cross'>('off');
+  const [grid, setGrid] = useState<CellState[]>(createEmptyGrid);
+  const [errorCount, setErrorCount] = useState(0);
   const [solverGrid, setSolverGrid] = useState<number[][] | null>(null);
   const [solverError, setSolverError] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [isPointerActive, setIsPointerActive] = useState(false);
+  const [pointerValue, setPointerValue] = useState<CellState | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    gridRef.current = grid;
+  }, [grid]);
+
+  const syncHistoryFlags = () => {
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  };
+
+  const pushHistory = useCallback(
+    (snapshot: CellState[]) => {
+      const cloned = [...snapshot];
+      const truncated = historyRef.current.slice(0, historyIndexRef.current + 1);
+      truncated.push(cloned);
+      if (truncated.length > HISTORY_LIMIT) {
+        truncated.shift();
+      }
+      historyRef.current = truncated;
+      historyIndexRef.current = truncated.length - 1;
+      syncHistoryFlags();
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +94,77 @@ export function PuzzleClient({ puzzle }: Props) {
     };
   }, [puzzle]);
 
+  useEffect(() => {
+    historyRef.current = [createEmptyGrid()];
+    historyIndexRef.current = 0;
+    startTransition(() => {
+      setGrid(createEmptyGrid());
+      setErrorCount(0);
+      setCanUndo(false);
+      setCanRedo(false);
+      setHasHydrated(false);
+    });
+  }, [createEmptyGrid, puzzle.id, puzzle.size]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as { grid: CellState[]; errors?: number };
+        if (Array.isArray(parsed.grid) && parsed.grid.length === totalCells) {
+          const snapshot = [...parsed.grid];
+          historyRef.current = [snapshot];
+          historyIndexRef.current = 0;
+          gridRef.current = snapshot;
+          startTransition(() => {
+            setGrid(snapshot);
+            setErrorCount(parsed.errors ?? 0);
+            syncHistoryFlags();
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to parse saved state', err);
+      }
+    } else {
+      const empty = createEmptyGrid();
+      historyRef.current = [empty];
+      historyIndexRef.current = 0;
+      gridRef.current = empty;
+      startTransition(() => {
+        setGrid(empty);
+        setErrorCount(0);
+        syncHistoryFlags();
+      });
+    }
+    startTransition(() => setHasHydrated(true));
+  }, [createEmptyGrid, storageKey, totalCells]);
+
+  useEffect(() => {
+    if (!hasHydrated || typeof window === 'undefined') return;
+    const payload = JSON.stringify({ grid, errors: errorCount });
+    window.localStorage.setItem(storageKey, payload);
+  }, [grid, errorCount, storageKey, hasHydrated]);
+
+  const finalizeStroke = useCallback(() => {
+    if (!strokeBaseRef.current) return;
+    pushHistory(gridRef.current);
+    strokeBaseRef.current = null;
+    setIsPointerActive(false);
+    setPointerValue(null);
+  }, [pushHistory]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const upHandler = () => finalizeStroke();
+    window.addEventListener('pointerup', upHandler);
+    window.addEventListener('touchend', upHandler);
+    return () => {
+      window.removeEventListener('pointerup', upHandler);
+      window.removeEventListener('touchend', upHandler);
+    };
+  }, [finalizeStroke]);
+
   const solvedFlat = useMemo(() => (solverGrid ? solverGrid.flat() : puzzle.solution.flat()), [solverGrid, puzzle.solution]);
 
   const isSolved = useMemo(() => {
@@ -64,19 +177,88 @@ export function PuzzleClient({ puzzle }: Props) {
     });
   }, [grid, solvedFlat]);
 
-  const toggleCell = (index: number) => {
+  const updateErrorTracking = (index: number, nextValue: CellState) => {
+    if (!solvedFlat) return;
+    const expected = solvedFlat[index];
+    if ((expected === 0 && nextValue === 1) || (expected === 1 && nextValue === -1)) {
+      setErrorCount((prev) => prev + 1);
+    }
+  };
+
+  const setCellValue = (index: number, nextValue: CellState, recordHistory = true) => {
     setGrid((prev) => {
-      const next = [...prev];
-      if (mode === 'fill') {
-        next[index] = prev[index] === 1 ? 0 : 1;
-      } else {
-        next[index] = prev[index] === -1 ? 0 : -1;
+      if (prev[index] === nextValue) {
+        return prev;
       }
-      return next;
+      const next = [...prev];
+      next[index] = nextValue;
+      updateErrorTracking(index, nextValue);
+      const snapshot = [...next];
+      if (recordHistory) {
+        pushHistory(snapshot);
+      } else {
+        historyRef.current[historyIndexRef.current] = snapshot;
+      }
+      return snapshot;
     });
   };
 
-  const resetGrid = () => setGrid(Array(puzzle.size * puzzle.size).fill(0));
+  const toggleCell = (index: number) => {
+    if (autoMode !== 'off') return;
+    const current = grid[index];
+    const nextValue = mode === 'fill' ? (current === 1 ? 0 : 1) : current === -1 ? 0 : -1;
+    setCellValue(index, nextValue, true);
+  };
+
+  const handleUndo = () => {
+    if (historyIndexRef.current === 0) return;
+    historyIndexRef.current -= 1;
+    const snapshot = [...historyRef.current[historyIndexRef.current]];
+    historyRef.current[historyIndexRef.current] = snapshot;
+    setGrid(snapshot);
+    gridRef.current = snapshot;
+    syncHistoryFlags();
+  };
+
+  const handleRedo = () => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    const snapshot = [...historyRef.current[historyIndexRef.current]];
+    historyRef.current[historyIndexRef.current] = snapshot;
+    setGrid(snapshot);
+    gridRef.current = snapshot;
+    syncHistoryFlags();
+  };
+
+  const resetProgress = () => {
+    const empty = createEmptyGrid();
+    historyRef.current = [empty];
+    historyIndexRef.current = 0;
+    setGrid(empty);
+    gridRef.current = empty;
+    setErrorCount(0);
+    syncHistoryFlags();
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(storageKey);
+    }
+  };
+
+  const startAutoStroke = (index: number) => {
+    if (autoMode === 'off') {
+      toggleCell(index);
+      return;
+    }
+    strokeBaseRef.current = [...gridRef.current];
+    setIsPointerActive(true);
+    const nextValue: CellState = autoMode === 'fill' ? 1 : -1;
+    setPointerValue(nextValue);
+    setCellValue(index, nextValue, false);
+  };
+
+  const continueAutoStroke = (index: number) => {
+    if (!isPointerActive || pointerValue === null) return;
+    setCellValue(index, pointerValue, false);
+  };
 
   return (
     <div className="space-y-6">
@@ -97,10 +279,53 @@ export function PuzzleClient({ puzzle }: Props) {
         </button>
         <button
           type="button"
-          onClick={resetGrid}
-          className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+          onClick={() => setAutoMode('off')}
+          className={`rounded-full border px-4 py-2 text-sm ${autoMode === 'off' ? 'border-emerald-500 text-emerald-200' : 'border-slate-700 text-slate-300'}`}
         >
-          Сбросить
+          Авто выкл
+        </button>
+        <button
+          type="button"
+          onClick={() => setAutoMode('fill')}
+          className={`rounded-full border px-4 py-2 text-sm ${autoMode === 'fill' ? 'border-emerald-500 text-emerald-200' : 'border-slate-700 text-slate-300'}`}
+        >
+          Авто-заливка
+        </button>
+        <button
+          type="button"
+          onClick={() => setAutoMode('cross')}
+          className={`rounded-full border px-4 py-2 text-sm ${autoMode === 'cross' ? 'border-emerald-500 text-emerald-200' : 'border-slate-700 text-slate-300'}`}
+        >
+          Авто-кресты
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <button
+          type="button"
+          onClick={handleUndo}
+          disabled={!canUndo}
+          className={`rounded-full border px-3 py-1 ${canUndo ? 'border-slate-600 text-slate-100' : 'border-slate-800 text-slate-500'}`}
+        >
+          ↺ Отменить
+        </button>
+        <button
+          type="button"
+          onClick={handleRedo}
+          disabled={!canRedo}
+          className={`rounded-full border px-3 py-1 ${canRedo ? 'border-slate-600 text-slate-100' : 'border-slate-800 text-slate-500'}`}
+        >
+          ↻ Повторить
+        </button>
+        <span className="text-slate-400">
+          Ошибки: <span className="text-white">{errorCount}</span>
+        </span>
+        <button
+          type="button"
+          onClick={resetProgress}
+          className="rounded-full border border-slate-700 px-3 py-1 text-slate-200 hover:border-slate-500"
+        >
+          Сбросить прогресс
         </button>
       </div>
 
@@ -121,7 +346,6 @@ export function PuzzleClient({ puzzle }: Props) {
       )}
 
       <div className="flex gap-3">
-        {/* Подсказки по строкам */}
         <div className="flex flex-col justify-end gap-1 text-right text-xs text-slate-400">
           {puzzle.rows.map((row, idx) => (
             <div key={idx} className="h-8 whitespace-nowrap">
@@ -131,10 +355,9 @@ export function PuzzleClient({ puzzle }: Props) {
         </div>
 
         <div>
-          {/* Подсказки по столбцам */}
           <div className="ml-8 grid" style={{ gridTemplateColumns: `repeat(${puzzle.size}, minmax(24px, 32px))` }}>
             {puzzle.cols.map((col, idx) => (
-              <div key={idx} className="mb-1 min-h-[50px] text-center text-xs text-slate-400">
+              <div key={idx} className="mb-1 min-h-[50px] whitespace-pre-line text-center text-xs text-slate-400">
                 {col.join('\n')}
               </div>
             ))}
@@ -149,7 +372,11 @@ export function PuzzleClient({ puzzle }: Props) {
                 type="button"
                 key={index}
                 className={`flex h-8 w-8 items-center justify-center border border-slate-800 text-lg transition ${cellClass(state)}`}
-                onClick={() => toggleCell(index)}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  startAutoStroke(index);
+                }}
+                onPointerEnter={() => continueAutoStroke(index)}
               >
                 {state === -1 ? '×' : ''}
               </button>
