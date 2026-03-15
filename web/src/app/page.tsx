@@ -50,6 +50,12 @@ export default async function Home() {
             >
               Комьюнити
             </Link>
+            <Link
+              href="/editor"
+              className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 hover:border-slate-500"
+            >
+              Редактор
+            </Link>
           </div>
         </header>
 
