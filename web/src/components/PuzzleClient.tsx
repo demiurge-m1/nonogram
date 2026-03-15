@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, startTransition } from 'react';
 import type { PuzzleGrid } from '@/data/mockBoards';
+import { solveWithWasm } from '@/lib/wasmSolver';
 
 type CellState = 0 | 1 | -1; // пусто, заполнено, крестик
 
@@ -18,18 +19,50 @@ const cellClass = (state: CellState) => {
 export function PuzzleClient({ puzzle }: Props) {
   const [mode, setMode] = useState<'fill' | 'cross'>('fill');
   const [grid, setGrid] = useState<CellState[]>(() => Array(puzzle.size * puzzle.size).fill(0));
+  const [solverGrid, setSolverGrid] = useState<number[][] | null>(null);
+  const [solverError, setSolverError] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    startTransition(() => {
+      setIsChecking(true);
+      setSolverError(null);
+    });
+    solveWithWasm(puzzle)
+      .then((result) => {
+        if (!cancelled) {
+          setSolverGrid(result.grid);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('wasm solver error', error);
+          setSolverError('Не удалось запустить solver');
+          setSolverGrid(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsChecking(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [puzzle]);
+
+  const solvedFlat = useMemo(() => (solverGrid ? solverGrid.flat() : puzzle.solution.flat()), [solverGrid, puzzle.solution]);
 
   const isSolved = useMemo(() => {
     return grid.every((value, index) => {
-      const row = Math.floor(index / puzzle.size);
-      const col = index % puzzle.size;
-      const target = puzzle.solution[row][col];
-      if (target === 1) {
+      const expected = solvedFlat[index];
+      if (expected === 1) {
         return value === 1;
       }
       return value !== 1;
     });
-  }, [grid, puzzle]);
+  }, [grid, solvedFlat]);
 
   const toggleCell = (index: number) => {
     setGrid((prev) => {
@@ -71,6 +104,16 @@ export function PuzzleClient({ puzzle }: Props) {
         </button>
       </div>
 
+      {isChecking && (
+        <div className="rounded-xl border border-sky-500/40 bg-sky-500/5 px-4 py-3 text-sm text-sky-200">
+          Загружаю wasm-solver…
+        </div>
+      )}
+      {solverError && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {solverError}. Использую локальную проверку.
+        </div>
+      )}
       {isSolved && (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
           🎉 Пазл решён! Попробуй следующий.
