@@ -14,7 +14,7 @@ const ORCHID_SOLUTION: number[][] = (() => {
   for (let row = 0; row < size; row += 1) {
     const distance = Math.abs(center - row);
     const width = center - distance;
-    const rowArr = Array.from({ length: size }, () => 0) as number[];
+    const rowArr = Array.from({ length: size }, () => 0);
     for (let col = center - width; col <= center + width; col += 1) {
       rowArr[col] = 1;
     }

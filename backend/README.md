@@ -45,6 +45,8 @@ docker run -p 3333:3333 nonogram-gateway
 ## 🛣️ Endpoints
 | Method | Path            | Описание                |
 |--------|-----------------|------------------------|
+| POST   | `/auth/guest`   | Создать гостевой токен |
+| GET    | `/auth/profile` | Профиль текущей сессии |
 | GET    | `/healthz`      | Health + commit hash   |
 | GET    | `/packs`        | Список паков (+counts) |
 | GET    | `/packs/:id`    | Полное описание пака   |
